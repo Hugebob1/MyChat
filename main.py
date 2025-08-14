@@ -9,8 +9,8 @@ from sqlalchemy import Integer, String, Text, select, ForeignKey, func
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
-
-
+from Mail import SendEmail
+from Storage import Storage
 
 load_dotenv()
 app = Flask(__name__)
@@ -28,6 +28,9 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
+
+s = Storage()
+x = SendEmail()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -96,10 +99,15 @@ def register():
                 flash('Email already registered, please log in!')
                 return redirect(url_for('login'))
             password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
-            new_user = User(username=user_name, email=email, password=password)
-            db.session.add(new_user)
-            db.session.commit()
-            return redirect(url_for('login'))
+            s.set_current_email(email)
+            s.set_password(password)
+            s.set_name(user_name)
+            s.set_code()
+            x.send_email(email, s.get_code())
+            # new_user = User(username=user_name, email=email, password=password)
+            # db.session.add(new_user)
+            # db.session.commit()
+            return redirect(url_for('verify'))
         else:
             flash('Your email is not allowed')
     return render_template("register.html")
@@ -112,8 +120,11 @@ def login():
 
         user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password, password):
-            login_user(user)
-            return redirect(url_for('chat'))
+            s.set_current_email(user.email)
+            s.set_code()
+            x.send_email(email, s.get_code())
+            return redirect(url_for('verify'))
+
         elif user:
             flash('Incorrect password')
         else:
@@ -203,6 +214,30 @@ def api_list_messages():
 def logout():
     logout_user()
     return redirect(url_for('index'))
+
+@app.route("/verify", methods=['GET', 'POST'])
+def verify():
+    if request.method == "POST":
+        code = (request.form.get("code") or "").strip()
+        print(code)
+        print(s.get_code())
+
+        if s.get_code() != 0 and s.get_code()==code:
+            if s.get_password()!="":
+                new_user = User(username=s.get_name(), email=s.get_current_email(), password=s.get_password())
+                db.session.add(new_user)
+                db.session.commit()
+                login_user(new_user)
+                s.reset()
+                return redirect(url_for('chat'))
+            else:
+                login_user(User.query.filter_by(email=s.get_current_email()).first())
+                s.reset()
+                return redirect(url_for('chat'))
+        else:
+            flash("Invalid code, try again")
+
+    return render_template("verification.html")
 
 if __name__ == "__main__":
     app.config['DEBUG'] = True

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Verify | Chat App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --glow: 0 0 24px rgba(255,255,255,.35), 0 0 48px rgba(255,255,255,.18);
+      --line-alpha: .08;
+      --card-w: 860px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:#fff;
+      background:#000
+        repeating-linear-gradient(
+          -45deg,
+          rgba(255,255,255,var(--line-alpha)) 0 2px,
+          transparent 2px 28px
+        );
+      display:grid;
+      place-items:center;
+      overflow:hidden;
+    }
+    body::before{
+      content:"";
+      position:fixed; inset:-200% -200% -200% -200%;
+      background:radial-gradient(60% 60% at 50% 50%, rgba(255,255,255,.06), transparent 60%);
+      animation: drift 18s linear infinite;
+      pointer-events:none;
+    }
+    @keyframes drift{
+      0%{transform:translate3d(0,0,0) rotate(0deg)}
+      50%{transform:translate3d(1%,1%,0) rotate(180deg)}
+      100%{transform:translate3d(0,0,0) rotate(360deg)}
+    }
+    .card{
+      width:min(92vw, var(--card-w));
+      padding: clamp(2rem, 4vw, 4rem);
+      border-radius: 28px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: 0 10px 60px rgba(0,0,0,.7), 0 0 80px rgba(255,255,255,.08);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      position:relative;
+      isolation:isolate;
+      text-align:center;
+    }
+    .card::after{
+      content:"";
+      position:absolute; inset:-3px;
+      border-radius:inherit;
+      background: radial-gradient(120% 120% at 50% -10%, rgba(255,255,255,.18), transparent 60%);
+      filter: blur(18px);
+      z-index:-1;
+      animation:pulse 3.2s ease-in-out infinite;
+      opacity:.9;
+    }
+    @keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+
+    h1{
+      font-size: clamp(2.2rem, 5vw, 3.2rem);
+      line-height:1.1; margin:0 0 .6rem 0; font-weight:800;
+      text-shadow: 0 2px 18px rgba(255,255,255,.15);
+    }
+    p.lead{
+      margin:0 auto 1.4rem auto; max-width:58ch;
+      color: rgba(255,255,255,.78);
+    }
+
+    .otp{
+      display:flex; justify-content:center; gap:12px; margin: 1.2rem 0 1.6rem 0; flex-wrap:wrap;
+    }
+    .otp input{
+      width:62px; height:70px; text-align:center;
+      font-size:1.6rem; font-weight:800; letter-spacing:.5px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.25);
+      background:rgba(255,255,255,.06); color:#fff;
+      outline:none; transition:border .2s, box-shadow .2s, transform .08s;
+    }
+    .otp input:focus{
+      border-color:#fff; box-shadow:0 0 0 3px rgba(255,255,255,.25);
+      transform: translateY(-1px);
+    }
+
+    .actions{
+      display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; margin-top:.4rem;
+    }
+    .btn{
+      border:none; border-radius:16px; padding:.95rem 1.6rem;
+      font-weight:700; cursor:pointer; position:relative;
+      background:linear-gradient(180deg,#fff,#e9e9e9); color:#000;
+      transition: transform .16s, box-shadow .16s, background .2s, color .2s;
+    }
+    .btn:hover{ transform: translateY(-2px) scale(1.035); box-shadow: var(--glow); }
+    .btn::after{ content:""; position:absolute; inset:-6px; border-radius:inherit; transition:box-shadow .16s; z-index:-1; }
+    .btn:hover::after{ box-shadow: 0 0 34px rgba(255,255,255,.35); }
+
+    .link{
+      color:#fff; text-decoration:none; border-bottom:1px solid rgba(255,255,255,.35);
+    }
+    footer{
+      position:fixed; bottom:1rem; left:0; right:0; text-align:center; font-size:.85rem; color: rgba(255,255,255,.5); pointer-events:none;
+    }
+  </style>
+</head>
+<body>
+  <main class="card" role="main" aria-labelledby="hero-title">
+    <h1 id="hero-title">Enter code from email</h1>
+    <p class="lead">We’ve sent a 6‑digit verification code to your email. Enter it below to continue.</p>
+
+    <form method="POST" action="{{ url_for('verify') }}" id="verify-form" autocomplete="one-time-code">
+      <!-- ukryte pole na scalony kod -->
+      <input type="hidden" name="code" id="code">
+
+      <!-- 6 pól po jednej cyfrze -->
+      <div class="otp" id="otp">
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 1" autocomplete="one-time-code" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 2" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 3" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 4" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 5" required>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 6" required>
+      </div>
+
+      <div class="actions">
+        <button class="btn" type="submit">Verify</button>
+
+      </div>
+    </form>
+  </main>
+
+  <footer>© Chat App</footer>
+
+  <script>
+    (function(){
+      const inputs = Array.from(document.querySelectorAll('#otp input'));
+      const hidden = document.getElementById('code');
+      const form = document.getElementById('verify-form');
+
+
+      inputs.forEach((input, idx) => {
+        input.addEventListener('input', e => {
+          const v = input.value.replace(/\D/g, '');
+          input.value = v.slice(-1);
+          if (input.value && idx < inputs.length - 1) inputs[idx+1].focus();
+          updateHidden();
+        });
+
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Backspace' && !input.value && idx > 0) {
+            inputs[idx-1].focus();
+          }
+          if (e.key === 'ArrowLeft' && idx > 0) inputs[idx-1].focus();
+          if (e.key === 'ArrowRight' && idx < inputs.length-1) inputs[idx+1].focus();
+        });
+
+        input.addEventListener('focus', () => input.select());
+        input.addEventListener('paste', e => {
+          const clip = (e.clipboardData || window.clipboardData).getData('text');
+          if (!clip) return;
+          e.preventDefault();
+          const digits = clip.replace(/\D/g, '').slice(0, inputs.length);
+          digits.split('').forEach((d,i) => { inputs[i].value = d; });
+          const next = Math.min(digits.length, inputs.length-1);
+          inputs[next].focus();
+          updateHidden();
+        });
+      });
+
+      function updateHidden(){
+        hidden.value = inputs.map(i => i.value || '').join('');
+      }
+
+      form.addEventListener('submit', e => {
+        updateHidden();
+        if (hidden.value.length !== inputs.length) {
+          e.preventDefault();
+
+          inputs.find(i => !i.value)?.focus();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
