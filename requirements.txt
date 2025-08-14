@@ -8,3 +8,4 @@ psycopg2-binary==2.9.9
 bleach==6.0.0
 Flask_WTF==1.2.1
 WTForms==3.0.1
+gunicorn>=21.2.0
