@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MyChat</title>
+  <style>
+    :root {
+      --bg: #0b141a;
+      --panel: #111b21;
+      --panel-2: #0e171c;
+      --text: #e9edef;
+      --muted: #8696a0;
+      --primary: #3b82f6;
+      --bubble-me: #005c4b;
+      --bubble-you: #202c33;
+      --accent: #25d366;
+      --danger: #ef4444;
+      --radius: 18px;
+      --shadow: 0 10px 25px rgba(0,0,0,.35);
+      --border: 1px solid rgba(255,255,255,.06);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 800px at 50% -200px, rgba(59,130,246,.2), transparent 60%), var(--bg);
+      color: var(--text);
+      font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      display: grid; place-items: center;
+    }
+
+    /* Center shell */
+    .chat-shell {
+      width: min(900px, 100%);
+      height: min(86vh, 980px);
+      padding: 0;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)) , var(--panel);
+      border: var(--border);
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .chat-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 18px;
+      background: var(--panel-2);
+      border-bottom: var(--border);
+      position: sticky; top: 0; z-index: 2;
+    }
+    .chat-header .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      display: grid; place-items: center; font-weight: 700; color: white;
+    }
+    .chat-header .title { font-weight: 600; }
+    .chat-header .sub { font-size: 12px; color: var(--muted); }
+    .spacer { flex: 1; }
+    .header-btn {
+      border: 0; background: transparent; color: var(--muted);
+      padding: 8px; cursor: pointer; border-radius: 10px;
+    }
+    .header-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .header-btn:hover { background: rgba(255,255,255,.06); color: var(--text); }
+
+    /* Messages area */
+    .messages {
+      position: relative;
+      overflow: auto;
+      padding: 16px 16px 24px;
+      display: flex; flex-direction: column;
+      gap: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,.02), transparent 30%), var(--panel);
+    }
+
+    .day-divider {
+      text-align: center; position: sticky; top: 10px; z-index: 1;
+      margin: 12px 0; display: flex; align-items: center; gap: 10px;
+      color: var(--muted); font-size: 12px;
+    }
+    .day-divider::before, .day-divider::after {
+      content: ""; flex: 1; height: 1px; background: rgba(255,255,255,.07);
+    }
+
+    .bubble {
+      max-width: 70ch;
+      width: fit-content;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      box-shadow: 0 5px 12px rgba(0,0,0,.25);
+      position: relative;
+      word-wrap: break-word; overflow-wrap: anywhere;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    .row { display: flex; gap: 8px; }
+    .me { justify-content: flex-end; }
+    .me .bubble { background: var(--bubble-me); border-top-right-radius: 6px; }
+    .you .bubble { background: var(--bubble-you); border-top-left-radius: 6px; }
+
+    .bubble .meta {
+      display: flex; gap: 8px; align-items: baseline; margin-top: 6px;
+      color: var(--muted); font-size: 11px;
+    }
+
+    .avatar-sm { width: 26px; height: 26px; border-radius: 50%; background: #1e293b; display: grid; place-items: center; font-size: 12px; color: #cbd5e1; }
+
+    /* Composer */
+    .composer {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 10px;
+      padding: 12px; background: var(--panel-2); border-top: var(--border);
+    }
+    .composer .icon-btn { border: 0; background: transparent; color: var(--muted); padding: 10px; border-radius: 12px; cursor: pointer; }
+    .composer .icon-btn:hover { background: rgba(255,255,255,.06); color: var(--text); }
+
+    .input {
+      display: flex; align-items: center; gap: 8px;
+      background: #0b1a20; border: 1px solid rgba(255,255,255,.07);
+      border-radius: 16px; padding: 6px 10px 6px 12px;
+    }
+    .input input[type="text"] {
+      background: transparent; border: 0; color: var(--text);
+      width: 100%; font: inherit; padding: 8px 0;
+    }
+    .input input::placeholder { color: #6b7a84; }
+    .send-btn {
+      border: 0; cursor: pointer; padding: 10px 14px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; font-weight: 600;
+    }
+    .send-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* Scroll to bottom button */
+    .to-bottom {
+      position: absolute; right: 14px; bottom: 84px; z-index: 2;
+      background: rgba(17,27,33,.9); border: 1px solid rgba(255,255,255,.09);
+      backdrop-filter: blur(6px);
+      padding: 8px 10px; border-radius: 12px; cursor: pointer; color: var(--text);
+      display: none;
+    }
+    .to-bottom.show { display: inline-flex; align-items: center; gap: 6px; }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .chat-shell { height: 100vh; border-radius: 0; width: 100%; }
+      .bubble { max-width: 90%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="chat-shell" aria-label="Okno czatu">
+    <header class="chat-header" role="banner">
+      <div class="avatar" aria-hidden="true">💬</div>
+      <div>
+        <div class="title">Czat ogólny</div>
+        <div class="sub">Zalogowany jako <strong>{{ current_user.username if current_user else 'Gość' }}</strong></div>
+      </div>
+      <div class="spacer"></div>
+      <button class="header-btn" title="Odśwież">⟳</button>
+      <button class="header-btn" title="Wyloguj" onclick="onLogout()">⎋</button>
+    </header>
+
+    <section id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions text">
+      <!-- Dzielnik dnia (opcjonalny) -->
+      {% set last_day = None %}
+      {% for m in messages %}
+        {% set this_day = m.created_at.strftime('%Y-%m-%d') %}
+        {% if this_day != last_day %}
+          <div class="day-divider">{{ m.created_at.strftime('%d %b %Y') }}</div>
+          {% set last_day = this_day %}
+        {% endif %}
+        <div class="row {{ 'me' if m.is_own else 'you' }}" data-message-id="{{ m.id }}">
+          {% if not m.is_own %}<div class="avatar-sm" aria-hidden="true">{{ m.username[:2]|upper }}</div>{% endif %}
+          <div class="bubble">
+            <div class="content">{{ m.content }}</div>
+            <div class="meta">
+              {% if not m.is_own %}<span class="author">{{ m.username }}</span>{% endif %}
+              <time datetime="{{ m.created_at.isoformat() }}">{{ m.created_at.strftime('%H:%M') }}</time>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+      <button id="toBottom" class="to-bottom" onclick="scrollToBottom()">▼ Do najnowszych</button>
+    </section>
+
+    <form class="composer" id="composer" onsubmit="return handleSend(event)" autocomplete="off">
+      <button type="button" class="icon-btn" title="Dodaj plik" aria-label="Dodaj plik">📎</button>
+      <div class="input">
+        <input id="messageInput" type="text" name="content" placeholder="Napisz wiadomość…" maxlength="2000" required />
+      </div>
+      <button id="sendBtn" class="send-btn" type="submit">Wyślij</button>
+    </form>
+  </main>
+
+  <script>
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const toBottomBtn = document.getElementById('toBottom');
+
+    // Autoscroll to bottom when first loaded
+    window.addEventListener('load', () => {
+      scrollToBottom(true);
+    });
+
+    function scrollToBottom(force) {
+      if (force) messagesEl.scrollTop = messagesEl.scrollHeight;
+      const delta = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+      if (delta > 5) {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+      toBottomBtn.classList.remove('show');
+    }
+
+    function handleSend(e) {
+      e.preventDefault();
+      const text = inputEl.value.trim();
+      if (!text) return false;
+      sendBtn.disabled = true;
+
+
+      fetch('/api/messages', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ content: text })
+      })
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then(m => {
+        appendMessage(m);
+        scrollToBottom();
+      })
+      .catch(() => alert('Nie udało się wysłać wiadomości'))
+      .finally(() => { inputEl.value=''; sendBtn.disabled=false; });
+
+
+      // Po powodzeniu od serwera (emit/new_message) przewiń
+      scrollToBottom();
+      inputEl.value = '';
+      sendBtn.disabled = false;
+      return false;
+    }
+
+    function appendMessage(m) {
+      // Minimalny renderer; w produkcji najlepiej użyć templatingu lub bezpiecznego escapu
+      const row = document.createElement('div');
+      row.className = 'row ' + (m.is_own ? 'me' : 'you');
+      row.dataset.messageId = m.id;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+
+      const content = document.createElement('div');
+      content.className = 'content';
+      content.textContent = m.content; // ważne: textContent (nie innerHTML)
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      if (!m.is_own) {
+        const author = document.createElement('span');
+        author.className = 'author';
+        author.textContent = m.username;
+        meta.appendChild(author);
+      }
+      const time = document.createElement('time');
+      time.dateTime = m.created_at;
+      const d = new Date(m.created_at);
+      time.textContent = d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+      meta.appendChild(time);
+
+      bubble.appendChild(content);
+      bubble.appendChild(meta);
+
+      if (!m.is_own) {
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar-sm';
+        avatar.textContent = (m.username || '??').slice(0,2).toUpperCase();
+        row.appendChild(avatar);
+      }
+
+      row.appendChild(bubble);
+      messagesEl.appendChild(row);
+    }
+
+    // Infinite scroll: ładowanie starszych po dojechaniu do góry
+    let loadingOlder = false;
+    messagesEl.addEventListener('scroll', async () => {
+      const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
+      if (!nearBottom) {
+        toBottomBtn.classList.add('show');
+      } else {
+        toBottomBtn.classList.remove('show');
+      }
+
+      if (messagesEl.scrollTop <= 0 && !loadingOlder) {
+        loadingOlder = true;
+        await loadOlderMessages();
+        loadingOlder = false;
+      }
+    });
+
+    async function loadOlderMessages() {
+      const first = messagesEl.querySelector('[data-message-id]');
+      const anchorId = first ? first.dataset.messageId : '';
+      const res = await fetch(`/api/messages?before_id=${anchorId}`);
+      if (!res.ok) return;
+      const older = await res.json(); // [{id, username, content, created_at, is_own}, ...]
+      if (!older.length) return;
+
+      const prevHeight = messagesEl.scrollHeight;
+      const fragment = document.createDocumentFragment();
+
+      older.forEach(m => {
+        // korzystamy z istniejącego renderer'a
+        const row = document.createElement('div');
+        row.className = 'row ' + (m.is_own ? 'me' : 'you');
+        row.dataset.messageId = m.id;
+
+        if (!m.is_own) {
+          const avatar = document.createElement('div');
+          avatar.className = 'avatar-sm';
+          avatar.textContent = (m.username || '??').slice(0, 2).toUpperCase();
+          row.appendChild(avatar);
+        }
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        const content = document.createElement('div');
+        content.className = 'content';
+        content.textContent = m.content;
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        if (!m.is_own) {
+          const author = document.createElement('span');
+          author.className = 'author';
+          author.textContent = m.username;
+          meta.appendChild(author);
+        }
+        const time = document.createElement('time');
+        time.dateTime = m.created_at;
+        time.textContent = new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        meta.appendChild(time);
+
+        bubble.appendChild(content);
+        bubble.appendChild(meta);
+        row.appendChild(bubble);
+        fragment.appendChild(row);
+      });
+
+      messagesEl.insertBefore(fragment, messagesEl.firstChild);
+      const newHeight = messagesEl.scrollHeight;
+      messagesEl.scrollTop += (newHeight - prevHeight);
+    }
+
+
+    function onLogout(){
+      // Podłącz do /logout jeśli chcesz
+      window.location.href = '/logout';
+    }
+  </script>
+</body>
+</html>
