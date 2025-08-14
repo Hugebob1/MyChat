@@ -1,24 +1,21 @@
 from datetime import date, datetime
 import os
 from flask import Flask, abort, render_template, redirect, url_for, flash, request, jsonify
-from flask_bootstrap import Bootstrap5
-from flask_ckeditor import CKEditor
+from cryptography.fernet import Fernet
 from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user, login_required
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Text, select, ForeignKey, func
 from functools import wraps
-
 from werkzeug.security import generate_password_hash, check_password_hash
-# Import your forms from the forms.py
-from typing import List
 from dotenv import load_dotenv
-import sys
+
 
 
 load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get("FLASK_KEY")
+fernet = Fernet(os.environ.get('MESSAGE_KEY'))
 
 # CREATE DATABASE
 class Base(DeclarativeBase):
@@ -52,7 +49,7 @@ class User(UserMixin, db.Model):
 class Message(db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.Integer, primary_key=True)
-    text = db.Column(db.Text, nullable=False)
+    text = db.Column(db.LargeBinary, nullable=False)
     date = db.Column(db.Date, server_default=func.current_date(), nullable=False)
     time = db.Column(db.Time, server_default=func.current_time(), nullable=False)
 
@@ -161,16 +158,18 @@ def api_create_message():
     if not text:
         return jsonify({"error": "empty"}), 400
 
-    msg = Message(text=text, user_id=current_user.id)
+    cipher = fernet.encrypt(text.encode("utf-8"))   # bytes
+    msg = Message(text=cipher, user_id=current_user.id)
     db.session.add(msg)
     db.session.commit()
+    db.session.refresh(msg)
 
     created_at = datetime.combine(msg.date, msg.time)
 
     return jsonify({
         "id": msg.id,
         "username": current_user.username,
-        "content": msg.text,
+        "content": text,
         "created_at": created_at.isoformat(),
         "is_own": True,
     }), 201
@@ -184,15 +183,16 @@ def api_list_messages():
         q = q.filter(Message.id < before_id)
 
     older = q.order_by(Message.id.desc()).limit(30).all()
-    older = list(reversed(older))
+    older.reverse()
 
     out = []
     for m in older:
         created_at = datetime.combine(m.date, m.time)
+        plaintext = fernet.decrypt(m.text).decode("utf-8")  
         out.append({
             "id": m.id,
             "username": m.author.username,
-            "content": m.text,
+            "content": plaintext,
             "created_at": created_at.isoformat(),
             "is_own": (m.user_id == current_user.id),
         })

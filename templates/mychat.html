@@ -244,7 +244,6 @@
     }
 
     function appendMessage(m) {
-      // Minimalny renderer; w produkcji najlepiej użyć templatingu lub bezpiecznego escapu
       const row = document.createElement('div');
       row.className = 'row ' + (m.is_own ? 'me' : 'you');
       row.dataset.messageId = m.id;
@@ -254,7 +253,7 @@
 
       const content = document.createElement('div');
       content.className = 'content';
-      content.textContent = m.content; // ważne: textContent (nie innerHTML)
+      content.textContent = m.content;
 
       const meta = document.createElement('div');
       meta.className = 'meta';
@@ -313,7 +312,7 @@
       const fragment = document.createDocumentFragment();
 
       older.forEach(m => {
-        // korzystamy z istniejącego renderer'a
+
         const row = document.createElement('div');
         row.className = 'row ' + (m.is_own ? 'me' : 'you');
         row.dataset.messageId = m.id;
@@ -355,7 +354,6 @@
 
 
     function onLogout(){
-      // Podłącz do /logout jeśli chcesz
       window.location.href = '/logout';
     }
   </script>
