@@ -143,7 +143,7 @@ def chat():
         messages_for_view.append({
             "id": m.id,
             "username": m.author.username,
-            "content": m.text,
+            "content": fernet.decrypt(m.text).decode("utf-8"),
             "created_at": created_at,
             "is_own": (m.user_id == current_user.id),
         })
@@ -188,7 +188,7 @@ def api_list_messages():
     out = []
     for m in older:
         created_at = datetime.combine(m.date, m.time)
-        plaintext = fernet.decrypt(m.text).decode("utf-8")  
+        plaintext = fernet.decrypt(m.text).decode("utf-8")
         out.append({
             "id": m.id,
             "username": m.author.username,
