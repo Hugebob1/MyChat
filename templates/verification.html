@@ -110,10 +110,22 @@
     footer{
       position:fixed; bottom:1rem; left:0; right:0; text-align:center; font-size:.85rem; color: rgba(255,255,255,.5); pointer-events:none;
     }
+    .flash{
+      color:#ff6b6b;
+      font-size:.95rem;
+      margin-bottom:.5rem;
+    }
   </style>
 </head>
 <body>
   <main class="card" role="main" aria-labelledby="hero-title">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <p class="flash">{{ message }}</p>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
     <h1 id="hero-title">Enter code from email</h1>
     <p class="lead">We’ve sent a 6‑digit verification code to your email. Enter it below to continue.</p>
 

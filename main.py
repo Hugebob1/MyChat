@@ -1,4 +1,5 @@
-from datetime import date, datetime
+import mimetypes
+from datetime import date, datetime, timezone
 import os
 from flask import Flask, abort, render_template, redirect, url_for, flash, request, jsonify
 from cryptography.fernet import Fernet
@@ -11,6 +12,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from Mail import SendEmail
 from Storage import Storage
+from uuid import uuid4
+from flask import send_from_directory
+
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 load_dotenv()
 app = Flask(__name__)
@@ -52,10 +58,11 @@ class User(UserMixin, db.Model):
 class Message(db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.Integer, primary_key=True)
-    text = db.Column(db.LargeBinary, nullable=False)
+    text = db.Column(db.LargeBinary, nullable=True)
     date = db.Column(db.Date, server_default=func.current_date(), nullable=False)
     time = db.Column(db.Time, server_default=func.current_time(), nullable=False)
-
+    file_path = db.Column(db.String(255), nullable=True)
+    type = db.Column(db.String(20), nullable=False, default="text")
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
 
     author = db.relationship('User', back_populates='messages')
@@ -151,13 +158,24 @@ def chat():
     messages_for_view = []
     for m in msgs:
         created_at = datetime.combine(m.date, m.time)
-        messages_for_view.append({
-            "id": m.id,
-            "username": m.author.username,
-            "content": fernet.decrypt(m.text).decode("utf-8"),
-            "created_at": created_at,
-            "is_own": (m.user_id == current_user.id),
-        })
+        if m.type == 'text':
+            messages_for_view.append({
+                "id": m.id,
+                "username": m.author.username,
+                "content": fernet.decrypt(m.text).decode("utf-8"),
+                "created_at": created_at,
+                "is_own": (m.user_id == current_user.id),
+                "type": m.type,
+            })
+        else:
+            messages_for_view.append({
+                "id": m.id,
+                "username": m.author.username,
+                "content": m.file_path,
+                "created_at": created_at,
+                "is_own": (m.user_id == current_user.id),
+                "type": m.type,
+            })
 
     return render_template("mychat.html", messages=messages_for_view)
 
@@ -183,6 +201,7 @@ def api_create_message():
         "content": text,
         "created_at": created_at.isoformat(),
         "is_own": True,
+        "type": msg.type
     }), 201
 
 @app.get("/api/messages")
@@ -199,15 +218,88 @@ def api_list_messages():
     out = []
     for m in older:
         created_at = datetime.combine(m.date, m.time)
-        plaintext = fernet.decrypt(m.text).decode("utf-8")
+
+        if m.type == "text":
+            content = fernet.decrypt(m.text).decode("utf-8") if m.text else ""
+            msg_type = "text"
+
+        elif m.type in ("image", "audio", "file"):
+            content = m.file_path
+            msg_type = m.type
+
+        else:
+            if m.file_path:
+                path = m.file_path.lower()
+                if path.endswith((".jpg", ".jpeg", ".png", ".gif")):
+                    msg_type = "image"
+                elif path.endswith((".mp3", ".wav", ".ogg", ".webm")):
+                    msg_type = "audio"
+                else:
+                    msg_type = "file"
+                content = m.file_path
+            else:
+                content = fernet.decrypt(m.text).decode("utf-8") if m.text else ""
+                msg_type = "text"
+
         out.append({
             "id": m.id,
             "username": m.author.username,
-            "content": plaintext,
+            "content": content,
             "created_at": created_at.isoformat(),
             "is_own": (m.user_id == current_user.id),
+            "type": msg_type,
         })
+
     return jsonify(out)
+
+
+
+
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
+@app.route("/api/messages/file", methods=["POST"])
+@login_required
+def upload_file():
+    if "file" not in request.files:
+        return {"error": "Brak pliku"}, 400
+
+    file = request.files["file"]
+    if not file or file.filename == "":
+        return {"error": "Pusty plik"}, 400
+
+    ext = (mimetypes.guess_extension(file.mimetype) or os.path.splitext(file.filename)[1] or ".bin").lower()
+    if ext == ".jpe":
+        ext = ".jpg"
+
+    mime = (file.mimetype or "").lower()
+    if mime.startswith("image/") or ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"):
+        msg_type = "image"
+    elif mime.startswith("audio/") or ext in (".mp3", ".wav", ".ogg", ".webm", ".m4a"):
+        msg_type = "audio"
+    else:
+        msg_type = "file"
+
+    unique_name = f"{uuid4().hex}{ext}"
+    abs_path = os.path.join(UPLOAD_FOLDER, unique_name)
+    file.save(abs_path)
+
+    file_url = f"/uploads/{unique_name}"
+    new_msg = Message(text=None, user_id=current_user.id, type=msg_type, file_path=file_url)
+    db.session.add(new_msg)
+    db.session.commit()
+
+    return {
+        "id": new_msg.id,
+        "username": current_user.username,
+        "content": file_url,
+        "type": msg_type,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "is_own": True,
+        "file_path": new_msg.file_path,
+    }
+
 
 @app.get("/logout")
 @login_required
@@ -222,7 +314,7 @@ def verify():
         print(code)
         print(s.get_code())
 
-        if s.get_code() != 0 and s.get_code()==code:
+        if s.get_code() != 0 and s.get_code()==int(code):
             if s.get_password()!="":
                 new_user = User(username=s.get_name(), email=s.get_current_email(), password=s.get_password())
                 db.session.add(new_user)

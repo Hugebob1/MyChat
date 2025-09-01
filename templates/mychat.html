@@ -155,43 +155,64 @@
     <header class="chat-header" role="banner">
       <div class="avatar" aria-hidden="true">💬</div>
       <div>
-        <div class="title">Czat ogólny</div>
-        <div class="sub">Zalogowany jako <strong>{{ current_user.username if current_user else 'Gość' }}</strong></div>
+        <div class="title">Main chat</div>
+        <div class="sub">Logged as <strong>{{ current_user.username if current_user else 'Gość' }}</strong></div>
       </div>
       <div class="spacer"></div>
-      <button class="header-btn" title="Odśwież">⟳</button>
-      <button class="header-btn" title="Wyloguj" onclick="onLogout()">⎋</button>
+      <button class="header-btn" title="Reload">⟳</button>
+      <button class="header-btn" title="Log out" onclick="onLogout()">⎋</button>
     </header>
 
     <section id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions text">
       <!-- Dzielnik dnia (opcjonalny) -->
       {% set last_day = None %}
       {% for m in messages %}
-        {% set this_day = m.created_at.strftime('%Y-%m-%d') %}
-        {% if this_day != last_day %}
-          <div class="day-divider">{{ m.created_at.strftime('%d %b %Y') }}</div>
-          {% set last_day = this_day %}
+  {% set this_day = m.created_at.strftime('%Y-%m-%d') %}
+  {% if this_day != last_day %}
+    <div class="day-divider">{{ m.created_at.strftime('%d %b %Y') }}</div>
+    {% set last_day = this_day %}
+  {% endif %}
+
+  <div class="row {{ 'me' if m.is_own else 'you' }}" data-message-id="{{ m.id }}">
+    {% if not m.is_own %}
+      <div class="avatar-sm" aria-hidden="true">{{ m.username[:2]|upper }}</div>
+    {% endif %}
+
+    <div class="bubble">
+      <div class="content">
+        {% if m.type == 'image' %}
+          <img src="{{ m.content }}" alt="image" style="max-width:200px;border-radius:8px;">
+        {% elif m.type == 'audio' %}
+          <audio controls src="{{ m.content }}"></audio>
+        {% elif m.type == 'file' %}
+          <a href="{{ m.content }}" target="_blank" rel="noopener">📎 Pobierz plik</a>
+        {% else %}
+          {{ m.content | e }}
         {% endif %}
-        <div class="row {{ 'me' if m.is_own else 'you' }}" data-message-id="{{ m.id }}">
-          {% if not m.is_own %}<div class="avatar-sm" aria-hidden="true">{{ m.username[:2]|upper }}</div>{% endif %}
-          <div class="bubble">
-            <div class="content">{{ m.content }}</div>
-            <div class="meta">
-              {% if not m.is_own %}<span class="author">{{ m.username }}</span>{% endif %}
-              <time datetime="{{ m.created_at.isoformat() }}">{{ m.created_at.strftime('%H:%M') }}</time>
-            </div>
-          </div>
-        </div>
-      {% endfor %}
-      <button id="toBottom" class="to-bottom" onclick="scrollToBottom()">▼ Do najnowszych</button>
+      </div>
+
+      <div class="meta">
+        {% if not m.is_own %}<span class="author">{{ m.username }}</span>{% endif %}
+        <time datetime="{{ m.created_at.isoformat() }}">{{ m.created_at.strftime('%H:%M') }}</time>
+      </div>
+    </div>
+  </div>
+{% endfor %}
+
+      <button id="toBottom" class="to-bottom" onclick="scrollToBottom()">▼ To newer</button>
     </section>
 
     <form class="composer" id="composer" onsubmit="return handleSend(event)" autocomplete="off">
-      <button type="button" class="icon-btn" title="Dodaj plik" aria-label="Dodaj plik">📎</button>
+      <button type="button" class="icon-btn" id="photoBtn" title="Dodaj zdjęcie" aria-label="Dodaj zdjęcie">📷</button>
+      <button type="button" class="icon-btn" id="voiceBtn" title="Nagraj głosówkę" aria-label="Nagraj głosówkę">🎤</button>
+
       <div class="input">
         <input id="messageInput" type="text" name="content" placeholder="Napisz wiadomość…" maxlength="2000" required />
       </div>
-      <button id="sendBtn" class="send-btn" type="submit">Wyślij</button>
+      <button id="sendBtn" class="send-btn" type="submit">Send</button>
+
+      <!-- Ukryty input do zdjęcia -->
+  <input type="file" id="photoInput" accept="image/*" style="display:none">
     </form>
   </main>
 
@@ -253,7 +274,30 @@
 
       const content = document.createElement('div');
       content.className = 'content';
-      content.textContent = m.content;
+
+      if (m.type === "audio") {
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = m.content;
+        content.appendChild(audio);
+
+      } else if (m.type === "image") {
+        const img = document.createElement('img');
+        img.src = m.content;
+        img.style.maxWidth = "200px";
+        img.style.borderRadius = "8px";
+        content.appendChild(img);
+
+      } else if (m.type === "file") {
+        const link = document.createElement('a');
+        link.href = m.content;
+        link.textContent = "📎 Pobierz plik";
+        link.target = "_blank";
+        content.appendChild(link);
+
+      } else {
+        content.textContent = m.content; // zwykły tekst
+      }
 
       const meta = document.createElement('div');
       meta.className = 'meta';
@@ -283,6 +327,9 @@
       messagesEl.appendChild(row);
     }
 
+
+
+
     // Infinite scroll: ładowanie starszych po dojechaniu do góry
     let loadingOlder = false;
     messagesEl.addEventListener('scroll', async () => {
@@ -305,14 +352,13 @@
       const anchorId = first ? first.dataset.messageId : '';
       const res = await fetch(`/api/messages?before_id=${anchorId}`);
       if (!res.ok) return;
-      const older = await res.json(); // [{id, username, content, created_at, is_own}, ...]
+      const older = await res.json();
       if (!older.length) return;
 
       const prevHeight = messagesEl.scrollHeight;
       const fragment = document.createDocumentFragment();
 
       older.forEach(m => {
-
         const row = document.createElement('div');
         row.className = 'row ' + (m.is_own ? 'me' : 'you');
         row.dataset.messageId = m.id;
@@ -323,11 +369,37 @@
           avatar.textContent = (m.username || '??').slice(0, 2).toUpperCase();
           row.appendChild(avatar);
         }
+
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
+
         const content = document.createElement('div');
         content.className = 'content';
-        content.textContent = m.content;
+
+        if (m.type === "audio") {
+          const audio = document.createElement('audio');
+          audio.controls = true;
+          audio.src = m.content;
+          content.appendChild(audio);
+
+        } else if (m.type === "image") {
+          const img = document.createElement('img');
+          img.src = m.content;
+          img.style.maxWidth = "200px";
+          img.style.borderRadius = "8px";
+          content.appendChild(img);
+
+        } else if (m.type === "file") {
+          const link = document.createElement('a');
+          link.href = m.content;
+          link.textContent = "📎 Pobierz plik";
+          link.target = "_blank";
+          content.appendChild(link);
+
+        } else {
+          content.textContent = m.content; // zwykły tekst
+        }
+
         const meta = document.createElement('div');
         meta.className = 'meta';
         if (!m.is_own) {
@@ -353,9 +425,71 @@
     }
 
 
+
     function onLogout(){
       window.location.href = '/logout';
     }
+
+    const photoBtn = document.getElementById('photoBtn');
+const photoInput = document.getElementById('photoInput');
+
+photoBtn.addEventListener('click', () => {
+  photoInput.click();
+});
+
+photoInput.addEventListener('change', () => {
+  if (photoInput.files.length > 0) {
+    const file = photoInput.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+
+    fetch('/api/messages/file', {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(m => appendMessage(m))
+    .catch(() => alert("Nie udało się wysłać zdjęcia"));
+  }
+});
+
+
+let mediaRecorder;
+let audioChunks = [];
+
+const voiceBtn = document.getElementById('voiceBtn');
+
+voiceBtn.addEventListener('click', async () => {
+  if (!mediaRecorder || mediaRecorder.state === "inactive") {
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append("file", blob, "glos.webm");
+
+      fetch('/api/messages/file', {
+        method: "POST",
+        body: formData
+      })
+      .then(r => r.json())
+      .then(m => appendMessage(m))
+      .catch(() => alert("Unable to send voice message"));
+    };
+
+    mediaRecorder.start();
+    voiceBtn.textContent = "⏹";
+  } else {
+    mediaRecorder.stop();
+    voiceBtn.textContent = "🎤";
+  }
+});
+
   </script>
 </body>
 </html>
